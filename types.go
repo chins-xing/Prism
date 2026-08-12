@@ -8,6 +8,7 @@ type NodeState struct {
 	HostID       string
 	SSAMScore    float64
 	FailedChecks []CheckFailure
+	Criticality  float64 // 0.0–1.0, 节点重要性权重 (默认 0.5); 被攻陷的关键节点传播更高风险
 }
 
 type CheckFailure struct {
@@ -36,6 +37,7 @@ type PrismConfig struct {
 	MaxPathDepth int     // 最大搜索深度，默认 5
 	ScoreFloor   float64 // 下界稳定项，默认 0.40
 	CollapseBeta float64 // 塌缩超线性指数，默认 1.5
+	AggregationMode string // 传播聚合模式: "rss"(默认)/"max"/"linear"
 
 	// Semantic Layer
 	StableThreshold    float64 // Stable 隶属度上界阈值，默认 0.90

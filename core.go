@@ -12,13 +12,46 @@ func externalRisk(ssamScore float64) float64 {
 	return (100.0 - ssamScore) / 100.0
 }
 
-func computeSpillover(upstreamERisk float64, transmission float64) float64 {
-	return upstreamERisk * transmission
+func computeSpillover(upstreamERisk float64, transmission float64, criticality float64) float64 {
+	if criticality <= 0 {
+		criticality = 0.5
+	}
+	return upstreamERisk * transmission * (0.5 + criticality)
 }
 
-// computePropagatedRisk calculates aggregated upstream propagation risk using
-// root-sum-square (RSS) to penalize concentration.
-func computePropagatedRisk(incomingEdges []EdgeState, allNodes map[string]*NodeState) float64 {
+// computePropagatedRisk calculates aggregated upstream propagation risk.
+// Supports "rss" (root-sum-square, default), "max" (worst source), "linear" (sum).
+func computePropagatedRisk(incomingEdges []EdgeState, allNodes map[string]*NodeState, mode string) float64 {
+	switch mode {
+	case "max":
+		maxSpill := 0.0
+		for _, e := range incomingEdges {
+			upstream, ok := allNodes[e.Source]
+			if !ok {
+				continue
+			}
+			spill := computeSpillover(externalRisk(upstream.SSAMScore), e.RiskTransmission, upstream.Criticality)
+			if spill > maxSpill {
+				maxSpill = spill
+			}
+		}
+		return maxSpill
+	case "linear":
+		sum := 0.0
+		for _, e := range incomingEdges {
+			upstream, ok := allNodes[e.Source]
+			if !ok {
+				continue
+			}
+			sum += computeSpillover(externalRisk(upstream.SSAMScore), e.RiskTransmission, upstream.Criticality)
+		}
+		return math.Min(1.0, sum)
+	default: // "rss"
+		return computePropagatedRiskRSS(incomingEdges, allNodes)
+	}
+}
+
+func computePropagatedRiskRSS(incomingEdges []EdgeState, allNodes map[string]*NodeState) float64 {
 	sumSquares := 0.0
 	for _, e := range incomingEdges {
 		upstream, ok := allNodes[e.Source]
@@ -26,7 +59,7 @@ func computePropagatedRisk(incomingEdges []EdgeState, allNodes map[string]*NodeS
 			continue
 		}
 		erisk := externalRisk(upstream.SSAMScore)
-		spill := computeSpillover(erisk, e.RiskTransmission)
+		spill := computeSpillover(erisk, e.RiskTransmission, upstream.Criticality)
 		sumSquares += spill * spill
 	}
 	return math.Min(1.0, math.Sqrt(sumSquares))
@@ -96,7 +129,7 @@ func ComputeDynamicScore(
 	nowUnix int64,
 ) AssetRiskResult {
 	// Propagation (orthogonal — depends only on upstream nodes)
-	propRiskRaw := computePropagatedRisk(incomingEdges, allNodes)
+	propRiskRaw := computePropagatedRisk(incomingEdges, allNodes, cfg.AggregationMode)
 	propPenalty := math.Min(cfg.PropCap, propRiskRaw)
 
 	// Debt (orthogonal — depends only on time × delta)
