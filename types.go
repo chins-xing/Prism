@@ -45,7 +45,7 @@ type PrismConfig struct {
 	DebtNormDays float64 // 债务归一化分母（天），默认 1500
 	PathDecay    float64 // 路径衰减因子，默认 0.80
 	MaxPathDepth int     // 最大搜索深度，默认 5
-	ScoreFloor   float64 // 下界稳定项，默认 0.40
+	ScoreFloor   float64 // 下界稳定项，默认 0.15
 	CollapseBeta float64 // 塌缩超线性指数，默认 1.5
 	AggregationMode string // 传播聚合模式: "rss"(默认)/"max"/"linear"
 
@@ -109,6 +109,11 @@ type SemanticRiskReport struct {
 	CollapseMembership  float64    // Collapse 隶属度 [0,1]
 	CurrentState        string     // 主导状态: "Stable" / "Degraded" / "Untrusted" / "Collapse"
 	StateVector         [4]float64 // 归一化状态向量 [Stable, Degraded, Untrusted, Collapse]
+	// InputConfidence is the node-level evidence confidence carried from the
+	// Core layer (NodeState.Confidence, normalized 0→1). The inference layer
+	// consumes it as a cap on the prediction confidence (design §2.5, audit
+	// I-7). Zero/unspecified behaves as 1.0 (legacy).
+	InputConfidence float64
 }
 
 // ============================================================
